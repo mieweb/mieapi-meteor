@@ -1,35 +1,41 @@
 import React, { useState } from 'react';
 import { Meteor } from 'meteor/meteor';
 import { useNavigate } from 'react-router-dom';
-import { Session } from 'meteor/session';
 
 const LoginForm = () => {
   const [practice, setPractice] = useState('');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [generatedUrl, setGeneratedUrl] = useState('');
   const [error, setError] = useState(null);
   const [step, setStep] = useState(1); // To manage transitions between sections
+  const [isLoading, setIsLoading] = useState(false);
+
   const navigate = useNavigate();
 
+  // Step 1: Generate the URL based on the practice name
   const handlePracticeSubmit = (e) => {
     e.preventDefault();
-    // Move to the next step
-    setStep(2);
+    setIsLoading(true); // Show spinner
+
+    // Call the Meteor method to generate the JWT token
+    Meteor.call('generateJwtToken', practice, (err, authToken) => {
+      setIsLoading(false); // Hide spinner
+      if (err) {
+        setError('Error generating token');
+        console.error('Error:', err);
+      } else {
+        const url = `https://${practice}.webchartnow.com/webchart.cgi?f=layout&module=BlueHive&name=AI_Accept_Connection&authToken=${authToken}&tabmodule=+`;
+        
+        setGeneratedUrl(url);
+        
+        setStep(2); // Move to the next step to show the URL
+      }
+    });
   };
 
   const handleLoginSubmit = (e) => {
     e.preventDefault();
-    Meteor.call('user.validateOrLogin', { practice, username, password }, (err, res) => {
-      if (err) {
-        setError(err.reason);
-      } else if (res && res.success) {
-        // Set the session variable to true on successful login
-        Session.set('isLoggedIn', true);
-
-        // Redirect user to the home page
-        navigate('/home');
-      }
-    });
+    setIsLoading(true); // Show spinner
+    window.location.href = generatedUrl; // Redirect to WebChart
   };
 
   return (
@@ -51,9 +57,9 @@ const LoginForm = () => {
             <img src="https://www.webchartnow.com/gfx/png/wc_logo_full.png" alt="Logo" className="mx-auto w-25 h-25" />
           </div>
 
+          {/* Step 1: Input Practice Name */}
           {step === 1 && (
             <form onSubmit={handlePracticeSubmit}>
-              {/* Practice Information Box */}
               <div className="mb-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-2">Practice Information</h2>
                 <label htmlFor="practice" className="block text-sm font-medium text-gray-700">Practice Name</label>
@@ -73,9 +79,16 @@ const LoginForm = () => {
               >
                 Next
               </button>
+              {isLoading && (
+                <div className="flex justify-center mt-4">
+                  <div className="loader border-t-transparent border-solid border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+                </div>
+              )}
+              {error && <p className="text-red-500 mt-4">{error}</p>}
             </form>
           )}
 
+          {/* Step 2: Show the generated URL */}
           {step === 2 && (
             <div>
               <button
@@ -84,41 +97,17 @@ const LoginForm = () => {
               >
                 ← Back to Practice Information
               </button>
-              {/* User Login Box */}
-              <h2 className="text-xl font-bold text-gray-800 mb-4">User Login</h2>
+              <h2 className="text-xl font-bold text-gray-800 mb-4">Generated WebChart URL</h2>
               {error && <p className="text-red-500 mb-4">{error}</p>}
-              <form onSubmit={handleLoginSubmit}>
-                <div className="mb-4">
-                  <label htmlFor="username" className="block text-sm font-medium text-gray-700">Username</label>
-                  <input
-                    type="text"
-                    id="username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="mt-1 block w-full p-3 border rounded-lg focus:ring-blue-500 focus:border-blue-500 border-gray-300 shadow-sm"
-                    placeholder="Enter Username"
-                    required
-                  />
-                </div>
-                <div className="mb-6">
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
-                  <input
-                    type="password"
-                    id="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="mt-1 block w-full p-3 border rounded-lg focus:ring-blue-500 focus:border-blue-500 border-gray-300 shadow-sm"
-                    placeholder="Enter Password"
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition duration-300"
-                >
-                  Login
-                </button>
-              </form>
+              <p className="mb-4">
+                WebChart URL: <a href={generatedUrl} target="_blank" className="text-blue-600">{generatedUrl}</a>
+              </p>
+              <button
+                onClick={handleLoginSubmit}
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition duration-300"
+              >
+                Login
+              </button>
             </div>
           )}
         </div>

@@ -22,3 +22,5 @@ react-meteor-data       # React higher-order component for reactively tracking M
 accounts-base
 accounts-password
 session
+kadira:flow-router
+random

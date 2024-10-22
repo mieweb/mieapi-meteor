@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { apiEndpoints } from '../../imports/api/apiEndpoint.js';
 import { useNavigate } from 'react-router-dom';
+import { Session } from 'meteor/session';
 
 const HomePage = () => {
+
+  const userSession = Session.get('userSession');
+
   const [apiResponse, setApiResponse] = useState(null);
   const [parameters, setParameters] = useState({
     filter: '',
@@ -16,14 +20,15 @@ const HomePage = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+
   useEffect(() => {
     setApiList(apiEndpoints);
-    // Check if the user is logged in
-    if (!Session.get('isLoggedIn')) {
-      // Redirect to login page if not logged in
-      navigate('/');
+    // Check if the user is authenticated
+    if (!userSession || !userSession.isAuthenticated) {
+      setApiLog('User not authenticated. Redirecting to login page...');
+      navigate('/'); // Redirect to login page if not authenticated
     }
-  }, [navigate]);
+  }, [navigate, userSession]);
   
   const LoadingSpinner = () => (
     <div className="flex items-center justify-center">
@@ -47,9 +52,18 @@ const HomePage = () => {
     setLoading(true);
 
     const params = { filter: parameters.filter, limit: parameters.limit ? `&limit=${parameters.limit}` : '' };
-
-    // Call the generic callApi method
-    Meteor.call('callApi', apiMethod, selectedApi, params, jsonBody, (error, result) => {
+    let parsedJsonBody = null;
+    if (apiMethod === 'POST' || apiMethod === 'PUT') {
+      try {
+        parsedJsonBody = JSON.parse(jsonBody);
+      } catch (e) {
+        setApiLog('Invalid JSON format in the body.');
+        setLoading(false);
+        return;
+      }
+    }
+  
+    Meteor.call('callApi', userSession.practiceName, userSession.connectToken, userSession.ip, userSession.wcUsrId,  apiMethod, selectedApi, params, parsedJsonBody, (error, result) => {
       setLoading(false);
       if (error) {
         setApiLog(`Error: ${error.message}`);
@@ -72,13 +86,13 @@ const HomePage = () => {
   const fetchApiResponse = () => {
     // Call the generic callApi method
     const params = { filter: parameters.filter, limit: parameters.limit ? `&limit=${parameters.limit}` : '' };
-    
-    Meteor.call('callApi', 'GET', selectedApi, params, null, (err, res) => {
-      if (err) {
-        setApiLog(`Error: ${err.message}`);
+    Meteor.call('callApi', userSession.practiceName, userSession.connectToken, userSession.ip, userSession.wcUsrId,  'GET', selectedApi, params, jsonBody, (error, result) => {
+      setLoading(false);
+      if (error) {
+        setApiLog(`Error: ${error.message}`);
       } else {
         setApiLog(`Success: GET request to ${selectedApi} was successful.`);
-        setJsonBody(JSON.stringify(res, null, 2)); // Populate JSON Body
+        setJsonBody(JSON.stringify(result, null, 2)); // Populate JSON Body
       }
     });
 
