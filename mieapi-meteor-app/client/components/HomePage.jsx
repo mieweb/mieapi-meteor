@@ -28,6 +28,8 @@ const HomePage = () => {
       setApiLog('User not authenticated. Redirecting to login page...');
       navigate('/'); // Redirect to login page if not authenticated
     }
+    console.log('Anisha is good', userSession );
+    console.log(Session.get('userSession'))
   }, [navigate, userSession]);
   
   const LoadingSpinner = () => (
