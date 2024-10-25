@@ -29,7 +29,7 @@ const AuthCallback = () => {
                         });
                         console.log('User is authenticated. Starting session with details:', Session.get('userSession'));
 
-                        navigate('/home'); // Redirect to the home page
+                        navigate('/integration'); // Redirect to the home page
                     } else {
                         console.error('User not found');
                         navigate('/'); // Redirect to login if user is not found

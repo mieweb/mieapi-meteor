@@ -48,11 +48,18 @@ WebApp.connectHandlers.use('/auth', async (req, res) => {
     }
 
     const { authToken, user } = payload;
-    const  practice  = payload.app.handle;
+    const practice = payload.app.handle;
 
     if (!authToken || !user) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ status: 400, message: 'Invalid payload. authToken and user are required.' }));
+    }
+    console.log('before validating auth token');
+    // Verify the JWT token
+    const validateResult = await Meteor.call('validateJwtToken', authToken);
+    if (!validateResult.success) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ status: 401, message: validateResult.message }));
     }
 
     const connectToken = generateConnectToken();
@@ -67,29 +74,35 @@ WebApp.connectHandlers.use('/auth', async (req, res) => {
     res.end(JSON.stringify(successResponse));
 
     try {
-      const ip = req.headers['x-forwarded-for'].split(',')[0].trim();
+      const ip = req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : req.connection.remoteAddress;
       const username = user.username;
       const handle = payload.app.handle;
       const wcUsrId = user.user_id;
-      const existingUser = await Meteor.users.findOneAsync({ username });
+      const existingUser = await Meteor.users.findOneAsync({ username: handle });
 
-      const userUpdate = {
-        username,
-        createdAt: new Date(),
-        services: {
-          webchart: { wcUsrId, handle, username, connectToken,ip, valid: true }
-        }
-      };
-
-      if (!existingUser) {
-        await Meteor.users.insertAsync(userUpdate);
-        console.log(`New user ${username} created.`);
-      } else {
-        await Meteor.users.updateAsync(existingUser._id, { $set: { 'services.webchart': userUpdate.services.webchart } });
+      if (existingUser) {
+        // Update the existing user with the webchart service information
+        await Meteor.users.updateAsync(
+          { _id: existingUser._id },
+          {
+            $set: {
+              'services.webchart': {
+                wcUsrId,
+                handle,
+                username,
+                connectToken,
+                ip,
+                valid: true
+              }
+            }
+          }
+        );
         console.log(`Connect Token updated for user ${username}.`);
+      } else {
+        console.error(`User with username ${username} not found.`);
       }
     } catch (error) {
-      console.error('Error during login/validation:', error);
+      console.error('Error during user update:', error);
     }
 
   } catch (error) {
@@ -99,6 +112,7 @@ WebApp.connectHandlers.use('/auth', async (req, res) => {
   }
 });
 
+
 Meteor.methods({
   async generateJwtToken(practiceName) {
     const secretKey = '123456789'; // This is my random secret for miemeteor app
@@ -107,7 +121,7 @@ Meteor.methods({
   },
 
   async validateJwtToken(token) {
-    const secretKey = '123456789'; // Use the same key for validation
+    const secretKey = '123456789'; // This should match the key used for signing
     try {
       // Verify the token and extract the payload
       const decoded = jwt.verify(token, secretKey);
